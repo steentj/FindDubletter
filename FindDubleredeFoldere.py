@@ -119,10 +119,8 @@ def remove_sub_duplicates(
     will trivially match too.  Remove those sub-duplicate groups so the report
     stays focused on the highest-level matches.
     """
-    # Collect all duplicate folder paths (across all groups)
-    all_dup_paths: set[str] = set()
-    for paths in groups.values():
-        all_dup_paths.update(paths)
+    # Collect and resolve all duplicate folder paths (across all groups) into a lookup set
+    all_dup_paths_resolved = {str(Path(p).resolve()) for paths in groups.values() for p in paths}
 
     filtered: dict[str, list[str]] = {}
     for h, paths in groups.items():
@@ -130,14 +128,10 @@ def remove_sub_duplicates(
         # another group?  If all paths are sub-paths, skip the whole group.
         def is_sub_of_other_dup(p: str) -> bool:
             p_resolved = Path(p).resolve()
-            for other in all_dup_paths:
-                if other == p:
-                    continue
-                try:
-                    p_resolved.relative_to(Path(other).resolve())
+            # Fast O(L) check: walk up the folder's parent folders and check if any are in the O(1) lookup set
+            for parent in p_resolved.parents:
+                if str(parent) in all_dup_paths_resolved:
                     return True
-                except ValueError:
-                    pass
             return False
 
         if all(is_sub_of_other_dup(p) for p in paths):
