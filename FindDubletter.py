@@ -1,51 +1,9 @@
 import os
-import hashlib
-import datetime
 from collections import defaultdict
 from pathlib import Path
 from tqdm import tqdm
 
-# --- CONFIGURATION ---
-# Add the paths to your cloud folders and local directories here
-# Example: [ '/Users/yourname/Documents', '/Users/yourname/Library/CloudStorage/OneDrive' ]
-SEARCH_PATHS = [
-    os.path.expanduser("~/Documents"),
-    os.path.expanduser("~/Users/steen"),
-    os.path.expanduser("~/Library/CloudStorage/OneDrive"),
-    os.path.expanduser("~/Library/Mobile Documents"),
-    # Add specific paths for iCloud/Dropbox/OneDrive as needed
-]
-
-# Hash algorithm (MD5 is fast and sufficient for duplicate detection)
-HASH_ALGO = "md5"
-# Size threshold for "Likely" vs "Defined" (e.g., only consider files > 1KB)
-MIN_SIZE_BYTES = 1024 
-
-def get_file_hash(file_path):
-    """Generate a hash for a file."""
-    hasher = hashlib.new(HASH_ALGO)
-    try:
-        with open(file_path, 'rb') as f:
-            while chunk := f.read(8192):
-                hasher.update(chunk)
-        return hasher.hexdigest()
-    except (PermissionError, OSError):
-        return None
-
-def get_file_info(path):
-    """Extract metadata for the markdown table."""
-    try:
-        stat = path.stat()
-    except (PermissionError, OSError):
-        return None
-    return {
-        "name": path.name,
-        "size": f"{stat.st_size:,} bytes",
-        "raw_size": stat.st_size,
-        "date_added": datetime.datetime.fromtimestamp(stat.st_ctime).strftime('%Y-%m-%d %H:%M'),
-        "date_updated": datetime.datetime.fromtimestamp(stat.st_mtime).strftime('%Y-%m-%d %H:%M'),
-        "full_path": str(path.absolute())
-    }
+from _shared import SEARCH_PATHS, MIN_SIZE_BYTES, get_file_hash, get_file_info
 
 def main():
     # Dictionary structure: { (size, name): [list_of_paths] }
@@ -55,6 +13,9 @@ def main():
     print(f"Scanning directories: {SEARCH_PATHS}")
     all_files = []
     for root_path in SEARCH_PATHS:
+        if not os.path.exists(root_path):
+            print(f"  [advarsel] Stien findes ikke: {root_path}")
+            continue
         for root, dirs, files in os.walk(root_path):
             for name in files:
                 all_files.append(os.path.join(root, name))
@@ -63,8 +24,11 @@ def main():
     for file_path in tqdm(all_files, desc="Grouping files"):
         try:
             p = Path(file_path)
-            if p.is_file() and p.stat().st_size >= MIN_SIZE_BYTES:
-                potential_dupes[(p.stat().st_size, p.name)].append(file_path)
+            stat = p.stat()
+            size = stat.st_size
+            if stat.st_mode & 0o170000 == 0o100000:  # standard file check (safer than is_file() which can call stat again)
+                if size >= MIN_SIZE_BYTES:
+                    potential_dupes[(size, p.name)].append(file_path)
         except (PermissionError, OSError):
             continue
 
