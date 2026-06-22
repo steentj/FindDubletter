@@ -17,6 +17,12 @@ def main():
             print(f"  [advarsel] Stien findes ikke: {root_path}")
             continue
         for root, dirs, files in os.walk(root_path):
+            # Exclude hidden directories (dotfiles) and system paths like Library, caches, virtual environments to avoid getting stuck
+            dirs[:] = [
+                d for d in dirs
+                if not d.startswith(".")
+                and d not in ("Library", "node_modules", "venv", ".venv", "local")
+            ]
             for name in files:
                 all_files.append(os.path.join(root, name))
 

@@ -37,6 +37,12 @@ def get_folder_hash(folder_path: str) -> str | None:
 
     try:
         for root, dirs, files in os.walk(folder_path):
+            # Consistent filtering of system/hidden directories, preventing entering Library
+            dirs[:] = [
+                d for d in dirs
+                if not d.startswith(".")
+                and d not in ("Library", "node_modules", "venv", ".venv", "local")
+            ]
             dirs.sort()  # deterministic traversal order
             for fname in sorted(files):
                 fpath = Path(root) / fname
@@ -158,6 +164,12 @@ def main():
             print(f"  [advarsel] Stien findes ikke: {root_path}")
             continue
         for root, dirs, _files in os.walk(root_path):
+            # Exclude hidden folders and system directories (e.g., Library) to avoid massive caches and hangs
+            dirs[:] = [
+                d for d in dirs
+                if not d.startswith(".")
+                and d not in ("Library", "node_modules", "venv", ".venv", "local")
+            ]
             dirs.sort()
             all_folders.append(root)
             for d in dirs:
